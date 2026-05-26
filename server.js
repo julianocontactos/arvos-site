@@ -1,9 +1,16 @@
+const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3006;
+const PORT_HTTPS = 3001;
+const PORT_HTTP = 3080;
 const ROOT = __dirname;
+
+const sslOptions = {
+  key: fs.readFileSync(path.join(__dirname, 'ssl', 'key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, 'ssl', 'cert.pem')),
+};
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -21,7 +28,7 @@ const MIME = {
   '.woff2':'font/woff2',
 };
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   let url = req.url.split('?')[0];
   if (url === '/') url = '/index.html';
 
@@ -54,8 +61,18 @@ const server = http.createServer((req, res) => {
     });
     res.end(data);
   });
+}
+
+// HTTPS server (principal)
+https.createServer(sslOptions, handleRequest).listen(PORT_HTTPS, () => {
+  console.log(`ARVOS site HTTPS running on https://localhost:${PORT_HTTPS}`);
 });
 
-server.listen(PORT, () => {
-  console.log(`ARVOS site running on http://localhost:${PORT}`);
+// HTTP redirect to HTTPS
+http.createServer((req, res) => {
+  const host = (req.headers.host || '').replace(/:\d+$/, '');
+  res.writeHead(301, { Location: `https://${host}:${PORT_HTTPS}${req.url}` });
+  res.end();
+}).listen(PORT_HTTP, () => {
+  console.log(`ARVOS HTTP redirect on http://localhost:${PORT_HTTP} -> HTTPS`);
 });
